@@ -1,60 +1,105 @@
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import ElementClickInterceptedException, NoSuchElementException
-from time import sleep
+from selenium.webdriver.support.ui import Select
+from dotenv import dotenv_values
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
+import time
 
-FB_EMAIL = YOUR FACEBOOK LOGIN EMAIL
-FB_PASSWORD = YOUR FACEBOOK PASSWORD
+secrets = dotenv_values(".env")
+USERNAME_FB = secrets['USERNAME_FB']
+PASSWORD_FB = secrets['PASSWORD_FB']
 
-chrome_driver_path = YOUR CHROME DRIVER PATH
-driver = webdriver.Chrome(executable_path=chrome_driver_path)
+# Optional - Keep the browser open (helps diagnose issues if the script crashes)
+chrome_options = webdriver.ChromeOptions()
+chrome_options.add_experimental_option("detach", True)
 
-driver.get("http://www.tinder.com")
+driver = webdriver.Chrome(options=chrome_options)
 
-sleep(2)
-login_button = driver.find_element_by_xpath('//*[@id="content"]/div/div[1]/div/main/div[1]/div/div/header/div[1]/div[2]/div/button')
-login_button.click()
+# Open Tinder
+driver.get('https://tinder.com/')
+driver.implicitly_wait(3)
 
-sleep(2)
-fb_login = driver.find_element_by_xpath('//*[@id="modal-manager"]/div/div/div[1]/div/div[3]/span/div[2]/button')
-fb_login.click()
+log_in = driver.find_element(By.LINK_TEXT, 'Log in')
+log_in.click()
+driver.implicitly_wait(8)
 
-sleep(2)
-base_window = driver.window_handles[0]
+time.sleep(2)
+more_option = driver.find_element(By.XPATH, value='//*[@id="c-1108700915"]/main/div/div/div[1]/div/div/div[2]'
+                                                  '/div[2]/span/button')
+if more_option:
+    more_option.click()
+    time.sleep(2)
+
+log_with_fb = driver.find_element(By.CSS_SELECTOR, value='button[aria-label*=Facebook]')
+log_with_fb.click()
+
+# After clicking the 'login with Facebook' new window will be opened, so we need to switch window in selenium too:
+tinder_window = driver.window_handles[0]
 fb_login_window = driver.window_handles[1]
 driver.switch_to.window(fb_login_window)
 print(driver.title)
 
-email = driver.find_element_by_xpath('//*[@id="email"]')
-password = driver.find_element_by_xpath('//*[@id="pass"]')
+# FB login credentials:
+fb_username = driver.find_element(By.ID, 'email')
+fb_username.send_keys(f'{USERNAME_FB}')
 
-email.send_keys(FB_EMAIL)
-password.send_keys(FB_PASSWORD)
-password.send_keys(Keys.ENTER)
+fb_password = driver.find_element(By.ID, value='pass')
+fb_password.send_keys(f'{PASSWORD_FB}')
 
-driver.switch_to.window(base_window)
+fb_login = driver.find_element(By.ID, value='loginbutton')
+fb_login.click()
+driver.implicitly_wait(10)
+
+# switch back to tinder window after login:
+driver.implicitly_wait(20)
+driver.switch_to.window(tinder_window)
 print(driver.title)
+allow_location_track = driver.find_element(By.CSS_SELECTOR, value='button[aria-label*=Allow]')
+if allow_location_track:
+    allow_location_track.click()
 
-sleep(5)
-allow_location_button = driver.find_element_by_xpath('//*[@id="modal-manager"]/div/div/div/div/div[3]/button[1]')
-allow_location_button.click()
-notifications_button = driver.find_element_by_xpath('//*[@id="modal-manager"]/div/div/div/div/div[3]/button[2]')
-notifications_button.click()
-cookies = driver.find_element_by_xpath('//*[@id="content"]/div/div[2]/div/div/div[1]/button')
-cookies.click()
+enable_notification = driver.find_element(By.CSS_SELECTOR, value='button[aria-label*=Enable]')
+if enable_notification:
+    enable_notification.click()
 
-for n in range(100):
-    sleep(1)
+accept_cookies = driver.find_element(By.XPATH, value='//*[@id="c619680161"]/div/div[2]/div/div/div[1]/div[1]/button')
+if accept_cookies:
+    accept_cookies.click()
+
+time.sleep(25)
+like_tinder = driver.find_element(By.XPATH, value='//*[@id="c619680161"]/div/div[1]/div/main/div[1]/div/div/div[1]'
+                                                  '/div[1]/div/div[3]/div/div[4]/button')
+
+for i in range(15):
+    driver.implicitly_wait(7)
     try:
-        print("called")
-        like_button = driver.find_element_by_xpath(
-            '//*[@id="content"]/div/div[1]/div/main/div[1]/div/div/div[1]/div/div[2]/div[4]/button')
-        like_button.click()
+        print('Profile Liked !')
+        # like a profile only if it is loaded
+        like_tinder.click()
     except ElementClickInterceptedException:
         try:
-            match_popup = driver.find_element_by_css_selector(".itsAMatch a")
-            match_popup.click()
-        except NoSuchElementException:
-            sleep(2)
+            # hide pop up (it's a match)
+            hide_its_a_match = driver.find_element(By.XPATH, '//*[@id="c-1089923421"]/div/div/div[1]/div/div'
+                                                             '[4]/button')
+            hide_its_a_match.click()
+
+        except:
+            # sometimes tinder shows (add to home screen pop up) so we need to click cancel
+            add_tinder_home_screen = driver.find_element(By.XPATH,
+                                                         '//*[@id="c1146291598"]/div/div/div[2]/button[2]/span')
+            add_tinder_home_screen.click()
+        # wait for two seconds for any of the above two exceptions and then click like button
+        time.sleep(2)
+        like_tinder.click()
+        print('Profile Liked !')
+
+    except NoSuchElementException:
+        # if profile is not loaded yet, then wait for 2 more sec
+        time.sleep(3)
+        like_tinder.click()
+        print('Profile Liked !')
 
 driver.quit()
